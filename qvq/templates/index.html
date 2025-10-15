@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能视频分析系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --hover-color: #357abd;
+        }
+        body {
+            background-color: #f8f9fa;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem 0;
+            font-family: 'Arial', sans-serif;
+            overflow-x: hidden;
+        }
+        .container {
+            max-width: 800px;
+            width: 100%;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        .upload-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+            padding: 3rem;
+            margin-bottom: 2rem;
+            transition: all 0.3s;
+            backdrop-filter: blur(10px);
+        }
+        .upload-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 10px 24px rgba(0,0,0,0.15);
+        }
+        .form-control {
+            border: 2px solid #dee2e6;
+            border-radius: 12px;
+            padding: 1.2rem 1.5rem;
+            transition: all 0.3s;
+            font-size: 1rem;
+        }
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(74,144,226,0.25);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--hover-color));
+            border: none;
+            border-radius: 12px;
+            padding: 1rem 2rem;
+            font-size: 1rem;
+            transition: all 0.3s;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        .progress-bar {
+            height: 8px;
+            background-image: linear-gradient(120deg, #4a90e2, #80d0c7);
+            width: 0;
+            border-radius: 12px;
+            transition: width 0.3s ease;
+        }
+        #thinking {
+            color: #6c757d;
+            line-height: 1.6;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            background: #f8f9fa;
+            border-left: 8px solid var(--primary-color);
+            border-radius: 12px;
+            font-family: 'Courier New', monospace;
+        }
+        #answerContent {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid #dee2e6;
+            white-space: pre-wrap;
+            margin-top: 1rem;
+            font-family: 'Consolas', monospace;
+            font-size: 0.9rem;
+        }
+        .highlight {
+            animation: highlight 1s ease-out;
+        }
+        @keyframes highlight {
+            from { background-color: rgba(74, 144, 226, 0.2); }
+            to { background-color: transparent; }
+        }
+        .result-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+            padding: 3rem;
+            margin-bottom: 2rem;
+            transition: all 0.3s;
+            backdrop-filter: blur(8px);
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            .upload-card {
+                padding: 2rem;
+            }
+            .btn-primary {
+                font-size: 0.9rem;
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="display-5 fw-bold mb-4 text-primary">🎬 智能视频分析系统</h1>
+        <p class="lead text-muted mb-5">上传视频文件，获取AI深度分析报告</p>
+
+        <div class="upload-card">
+            <form id="uploadForm">
+                <div class="mb-4">
+                    <label class="form-label fw-bold">选择视频文件</label>
+                    <input type="file" class="form-control form-control-lg" id="videoInput" accept="video/*" required>
+                    <div class="form-text text-muted">支持MP4, MOV, AVI格式，最大50MB</div>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="form-label fw-bold">分析指令</label>
+                    <textarea class="form-control form-control-lg" id="promptInput" rows="4" 
+                              placeholder="示例：请详细描述视频内容，指出关键时间点的重点内容..." 
+                              style="resize: none;">这段视频讲的是什么内容？有哪些需要注意的细节？</textarea>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 py-3 mb-3">
+                    <span class="spinner-border spinner-border-sm d-none" id="loadingSpinner"></span>
+                    <span id="submitText">开始智能分析</span>
+                </button>
+                <div class="progress-bar mt-2"></div>
+            </form>
+        </div>
+
+        <div class="result-card mt-4">
+            <h5 class="mb-3 fw-bold">🔍 分析过程</h5>
+            <div id="thinking"></div>
+            <div id="answerSection" style="display: none;">
+                <hr class="my-4">
+                <h5 class="mb-3 fw-bold">📝 完整分析报告</h5>
+                <pre id="answerContent"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        const thinkingDiv = document.getElementById('thinking');
+        const answerSection = document.getElementById('answerSection');
+        const answerContent = document.getElementById('answerContent');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const submitText = document.getElementById('submitText');
+        const progressBar = document.querySelector('.progress-bar');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // 禁用提交按钮
+            form.querySelector('button').classList.add('disabled');
+            form.querySelector('button').disabled = true;
+            loadingSpinner.classList.remove('d-none');
+            submitText.textContent = '分析中...';
+
+            const formData = new FormData();
+            formData.append('video', document.getElementById('videoInput').files[0]);
+            formData.append('prompt', document.getElementById('promptInput').value);
+
+            // 重置显示区域
+            thinkingDiv.innerHTML = '';
+            answerContent.textContent = '';
+            answerSection.style.display = 'none';
+            progressBar.style.width = '0%';
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while(true) {
+                    const { done, value } = await reader.read();
+                    if(done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    
+                    // 处理完整的事件流
+                    const events = buffer.split('\n\n');
+                    buffer = events.pop() || '';  // 保留未完成的部分
+
+                    events.forEach(event => {
+                        const match = event.match(/^data: ({.*})$/);
+                        if(match) {
+                            try {
+                                const data = JSON.parse(match[1]);
+                                handleStreamEvent(data);
+                            } catch(err) {
+                                console.error('JSON解析错误:', err);
+                            }
+                        }
+                    });
+
+                    // 更新进度条（模拟）
+                    progressBar.style.width = `${Math.min(progressBar.offsetWidth + 2, 100)}%`;
+                }
+            } catch(error) {
+                console.error('请求失败:', error);
+                alert('分析失败，请检查网络连接后重试');
+            } finally {
+                // 重置界面状态
+                form.querySelector('button').classList.remove('disabled');
+                form.querySelector('button').disabled = false;
+                loadingSpinner.classList.add('d-none');
+                submitText.textContent = '开始智能分析';
+                progressBar.style.width = '100%';
+                setTimeout(() => progressBar.style.width = '0%', 1000);
+            }
+        });
+
+        function handleStreamEvent(data) {
+            switch(data.type) {
+                case 'reasoning':
+                    thinkingDiv.textContent += data.content;
+                    thinkingDiv.scrollIntoView({ behavior: 'smooth' });
+                    break;
+                
+                case 'answer_start':
+                    answerSection.style.display = 'block';
+                    window.scrollTo({
+                        top: document.body.scrollHeight,
+                        behavior: 'smooth'
+                    });
+                    break;
+                
+                case 'answer':
+                    answerContent.textContent += data.content;
+                    answerContent.classList.add('highlight');
+                    setTimeout(() => answerContent.classList.remove('highlight'), 1000);
+                    answerContent.scrollTop = answerContent.scrollHeight;
+                    break;
+            }
+        }
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" defer></script>
+</body>
+</html>
